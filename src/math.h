@@ -25,3 +25,28 @@ public:
     Vector2(float x, float y) : x(x), y(y) {}
     Vector2(float num) : x(num), y(num) {}
 };
+
+float min(float a, float b)
+{
+    //return the smallest value of a or b
+    return (a < b ? a : b);
+}
+
+float max(float a, float b)
+{
+    //return the biggest value of a or b
+    return (a > b ? a : b);
+}
+
+float clamp(float a, float minimum, float maxium)
+{
+    return (min(max(a,minimum),maxium));
+}
+
+void swap(float &a, float &b)
+{
+    //swap values of a and b
+    float temp = b;
+    b = a;
+    a = temp;
+}

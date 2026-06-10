@@ -173,7 +173,7 @@ void draw3D() {
     //clip walls behind player
     if (r0z <= 0 && r1z <= 0) return;
 
-    //if only one corner isn't visible clip the unvisible part to become visible
+    //if only one side of the wall isn't visible on screen clip the unvisible part to avoid issues
     float nearz = 0.1;
     if (r0z <= 0) {
         float t = (nearz - r0z) / (r1z - r0z);
@@ -190,41 +190,97 @@ void draw3D() {
 
     //perspective
     int fov = 90;
-    float hfov = 0.73*HEIGHT;
-    float vfov = 0.2*HEIGHT;
-    //float hfov = halfWIDTH/std::tan(degToRad(fov)/2);
-    //float vfov = 2*std::atan((WIDTH/HEIGHT)*std::tan(degToRad(fov)/2));
+    //float hfov = 0.73*HEIGHT;
+    //float vfov = 0.2*HEIGHT;
+    float focal_length = halfWIDTH/(std::tan(degToRad(fov)/2));
+    //float focal_length = halfWIDTH;
 
-    float xscale0 = hfov / r0z;
-    float xscale1 = hfov / r1z;
-    //float xscale0 = r0z / hfov;
-    //float xscale1 = r1z / hfov;
+    //float xscale0 = hfov / r0z;
+    //float xscale1 = hfov / r1z;
 
-    float x0 = halfWIDTH - (r0x*xscale0); //left wall side
-    float x1 = halfWIDTH - (r1x*xscale1); //right wall side
+    //float x0 = halfWIDTH - (r0x*xscale0); //left wall side
+    //float x1 = halfWIDTH - (r1x*xscale1); //right wall side
+    float x0 = halfWIDTH - focal_length * r0x / r0z; //left wall side
+    float x1 = halfWIDTH - focal_length * r1x / r1z; //right wall side
 
+    //ceiling and floor
     int ceilingHeight = 30;
     int floorHeight = -10;
 
-    float yscale0 = vfov / r0z;
-    float yscale1 = vfov / r1z;
-    //float yscale0 = r0z / vfov;
-    //float yscale1 = r1z / vfov;
+    //float yscale0 = vfov / r0z;
+    //float yscale1 = vfov / r1z;
 
-    float top0 = halfHEIGHT + (ceilingHeight - player.position.z) * yscale0;
+    float top0 = halfHEIGHT + focal_length * (ceilingHeight - player.position.z) / r0z;
+    float bottom0 = halfHEIGHT + focal_length * (floorHeight - player.position.z) / r0z;
+    float top1 = halfHEIGHT + focal_length * (ceilingHeight - player.position.z) / r1z;
+    float bottom1 = halfHEIGHT + focal_length * (floorHeight - player.position.z) / r1z;
+    /*float top0 = halfHEIGHT + (ceilingHeight - player.position.z) * yscale0;
     float bottom0 = halfHEIGHT + (floorHeight - player.position.z) * yscale0;
     float top1 = halfHEIGHT + (ceilingHeight - player.position.z) * yscale1;
-    float bottom1 = halfHEIGHT + (floorHeight - player.position.z) * yscale1;
+    float bottom1 = halfHEIGHT + (floorHeight - player.position.z) * yscale1;*/
 
-    //test wall
-    //drawLine(wallpos1, wallpos2);
-    //drawLine(v1, v2);
-    //drawLine(Vector2(r0z+halfWIDTH, r0x+halfHEIGHT), Vector2(r1z+halfWIDTH, r1x+halfHEIGHT));
-    drawLine(Vector2(x0, top0), Vector2(x1, top1), Vector3(0, 255, 0));
-    drawLine(Vector2(x0, bottom0), Vector2(x1, bottom1), Vector3(0, 255, 255));
+    //clip values into screen space or return if not on screen
+    float xleft, xright;
+    if (x0 > x1)
+    {
+        swap(x0, x1);
 
-    drawLine(Vector2(x0, top0), Vector2(x0, bottom0), Vector3(255, 0, 0));
-    drawLine(Vector2(x1, top1), Vector2(x1, bottom1), Vector3(0, 0, 255));
+        if (x0 >= WIDTH || x1 < 0)
+        return;
+    
+        xleft = max(x0, 0);
+        xright = min(x1, WIDTH);
+
+        swap(x0, x1);
+    }
+    else
+    {
+        if (x0 >= WIDTH || x1 < 0)
+        return;
+    
+        xleft = max(x0, 0);
+        xright = min(x1, WIDTH);
+    }
+
+    if (bottom0 >= HEIGHT && bottom1 >= HEIGHT)
+    return;
+
+    if (top0 < 0 && top1 < 0)
+    return;
+    
+    //debug wall drawing
+    //drawLine(Vector2(x0, top0), Vector2(x1, top1), Vector3(0, 255, 0));
+    //drawLine(Vector2(x0, bottom0), Vector2(x1, bottom1), Vector3(0, 255, 255));
+
+    //drawLine(Vector2(x0, top0), Vector2(x0, bottom0), Vector3(255, 0, 0));
+    //drawLine(Vector2(x1, top1), Vector2(x1, bottom1), Vector3(0, 0, 255));
+
+    //std::cout << "(" << x0 << ", " << top0 << ")" << "---------" << "(" << x1 << ", " << top1 << ")" << std::endl;
+    //std::cout << "(" << x0 << ", " << bottom0 << ")" << "---------" << "(" << x1 << ", " << bottom0 << ")" << std::endl;
+
+    //draw wall by rendering columns
+    for (float x = xleft; x <= xright; x++) {
+        float t, topy, bottomy;
+        
+        //use lerp to find the correct x value between x0 and x1 for the column on screen
+        t = (x-x0) / (x1-x0);
+        //float t = x/x1;
+        topy = top0 + t * (top1 - top0);
+        bottomy = bottom0 + t * (bottom1 - bottom0);
+
+        //clip y values to screen space once transformed
+        if (bottomy >= HEIGHT || topy < 0)
+        continue;
+
+        topy = min(topy, HEIGHT);
+        bottomy = max(bottomy, 0);
+
+        //finally render the column
+        for (float y = bottomy; y <= topy; y++)
+        {
+            pixel(x, y, Vector3(255,255,0));
+        }
+    }
 }
 
 void draw2D() {
@@ -251,6 +307,7 @@ void draw2D() {
     float r1z = v2.x * std::cos(degToRad(rot)) - v2.y * std::sin(degToRad(rot));
     float r1x = v2.x * std::sin(degToRad(rot)) + v2.y * std::cos(degToRad(rot));
 
+    //draw wall
     drawLine(Vector2(r0z+halfWIDTH, r0x+halfHEIGHT), Vector2(r1z+halfWIDTH, r1x+halfHEIGHT), Vector3(0, 255, 0));
     pixel(r0z+halfWIDTH, r0x+halfHEIGHT, Vector3(255, 0, 0));
     pixel(r1z+halfWIDTH, r1x+halfHEIGHT, Vector3(0, 0, 255));
