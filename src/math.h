@@ -50,3 +50,13 @@ void swap(float &a, float &b)
     b = a;
     a = temp;
 }
+
+float crossProduct (Vector2 a, Vector2 b)
+{
+    return (a.x * b.y - a.y * b.x);
+}
+
+float dotProduct (Vector2 a, Vector2 b)
+{
+    return (a.x * b.x + a.y * b.y);
+}
