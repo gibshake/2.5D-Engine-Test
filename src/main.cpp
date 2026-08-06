@@ -2,7 +2,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-//sleep function
+//sleep and time functions
 #include <chrono>
 #include <thread>
 
@@ -77,8 +77,8 @@ sector* sectors = new sector[] {
         }
     }, //2nd sector
         {
-        -10, //floor
-        30, //ceiling
+        -30, //floor
+        50, //ceiling
         new Vector2[] {
             Vector2(-70,70),
             Vector2(70, 70),
@@ -112,7 +112,7 @@ void clearBackground();
 void init();
 
 void draw2D(sector* sect);
-void draw3D(sector* sect);
+void draw3D(sector* sectors);
 void display(GLFWwindow *window);
 
 void windowScaling(int width, int height);
@@ -212,17 +212,18 @@ void display(GLFWwindow *window) {
     if (inputPressed.showmap)
     draw2D(&sectors[player.sector]);
     else
-    draw3D(&sectors[player.sector]);
+    draw3D(sectors);
 
 
     glfwSwapBuffers(window);
 
 }
 
-void draw3D(sector* sect) {
+void draw3D(sector* sectors) {
     float dx = std::sin(degToRad(player.rotation));
     float dy = std::cos(degToRad(player.rotation));
 
+    sector* sect = &sectors[player.sector]; //current sector being rendered
     for (int p=0; p < sect->numPoints; p++) //for each wall in the sector
     {
     Vector2 wallpos1 = sect->vertex[p+0];
@@ -243,7 +244,7 @@ void draw3D(sector* sect) {
     //clip walls behind player
     if (r0z <= 0 && r1z <= 0) continue;
 
-    //if only one side of the wall isn't visible on screen clip the unvisible part to avoid issues
+    //if only one side of the wall isn't visible on screen clip the nonvisible part to avoid issues
     float nearz = 0.1;
     if (r0z <= 0) {
         float t = (nearz - r0z) / (r1z - r0z);
@@ -277,6 +278,22 @@ void draw3D(sector* sect) {
     float bottom0 = halfHEIGHT + focal_length * (floorHeight - player.position.z) / r0z;
     float top1 = halfHEIGHT + focal_length * (ceilingHeight - player.position.z) / r1z;
     float bottom1 = halfHEIGHT + focal_length * (floorHeight - player.position.z) / r1z;
+
+    //top and bottom part of neighbor wall (ignored if normal wall)
+    float nCeilingHeight = 0, nFloorHeight = 0;
+    float nTop0, nTop1, nBottom0, nBottom1;
+
+    short neighbor = sect->neighbors[p];
+    if (neighbor >= 0)
+    {
+        nCeilingHeight = sectors[neighbor].ceil;
+        nFloorHeight = sectors[neighbor].floor;
+
+        nTop0 = halfHEIGHT + focal_length * (nCeilingHeight - player.position.z) / r0z;
+        nBottom0 = halfHEIGHT + focal_length * (nFloorHeight - player.position.z) / r0z;
+        nTop1 = halfHEIGHT + focal_length * (nCeilingHeight - player.position.z) / r1z;
+        nBottom1 = halfHEIGHT + focal_length * (nFloorHeight - player.position.z) / r1z;
+    }
 
     //clip values into screen space or return if not on screen
     float xleft, xright;
@@ -317,7 +334,7 @@ void draw3D(sector* sect) {
     //std::cout << "(" << x0 << ", " << top0 << ")" << "---------" << "(" << x1 << ", " << top1 << ")" << std::endl;
     //std::cout << "(" << x0 << ", " << bottom0 << ")" << "---------" << "(" << x1 << ", " << bottom0 << ")" << std::endl;
 
-    short neighbor = sect->neighbors[p];
+    //short neighbor = sect->neighbors[p];
 
     //draw wall by rendering columns
     for (float x = xleft; x <= xright; x++) {
@@ -339,10 +356,28 @@ void draw3D(sector* sect) {
         //finally render the columns
         if (neighbor >= 0)
         {
+
+            float nTopy = nTop0 + t * (nTop1 - nTop0);
+            float nBottomy = nBottom0 + t * (nBottom1 - nBottom0);
+
             //render neighboring sector
             for (float y = bottomy; y <= topy; y++)
             {
-                pixel(x, y, Vector3(255,0,0));
+                if (bottomy < nBottomy && y <= nBottomy)
+                {
+                    //if theres a bottom wall part render it
+                    pixel(x, y, Vector3(255,0,255));
+                }
+                else if (topy > nTopy && y >= nTopy)
+                {
+                    //if theres a top wall part render it
+                    pixel(x, y, Vector3(255,255,0));
+                }
+                else
+                {
+                    //render the neighboring sector
+                    pixel(x, y, Vector3(255,0,0));
+                }
             }
         }
         else
@@ -445,13 +480,28 @@ void playerMovement()
         player.position.y += wishDir.y;
     }
 
+    sector* sect = &sectors[player.sector];
     if (inputPressed.space) {
         //fly up
-        player.position.z += 1;
+        float ceiling = sect->ceil;
+        float wishHeight = 1;
+
+        //player cant go higher than ceiling
+        if (player.position.z + wishHeight > ceiling)
+        player.position.z = ceiling;
+        else
+        player.position.z += wishHeight;
     }
     if (inputPressed.shift) {
         //fly down
-        player.position.z -= 1;
+        float floor = sect->floor;
+        float wishHeight = 1;
+
+        //player cant go lower than floor
+        if (player.position.z - wishHeight < floor)
+        player.position.z = floor;
+        else
+        player.position.z -= wishHeight;
     }
 }
 
@@ -476,9 +526,10 @@ void playerWallCollision(Vector2 &wishDir, short prevSect)
             //if player passed the wall
 
             short neighbor = sect->neighbors[p];
-            if (neighbor >= 0 && neighbor != prevSect)
+            if (neighbor >= 0 && neighbor != prevSect && 
+                player.position.z >= sectors[neighbor].floor && player.position.z <= sectors[neighbor].ceil)
             {
-                //if player crossed a neighboring sector then change the rendering sector to the neighbor
+                //if player crossed a neighboring sector and didn't hit any lower or upper wall part then change the rendering sector to the neighbor
                 prevSect = player.sector;
                 player.sector = neighbor;
 
