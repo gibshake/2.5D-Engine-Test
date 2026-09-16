@@ -54,7 +54,7 @@ struct sector
     unsigned int numPoints; //amount of vertices in sector
     short *neighbors;
 }; //*sectors = nullptr;
-//unsigned int numSectors = 2;
+unsigned int numSectors = 2;
 
 //TODO: LOAD SECTORS FROM FILE
 sector* sectors = new sector[] {
@@ -223,9 +223,33 @@ void draw3D(sector* sectors) {
     float dx = std::sin(degToRad(player.rotation));
     float dy = std::cos(degToRad(player.rotation));
 
-    sector* sect = &sectors[player.sector]; //current sector being rendered
+    //queue for rendering each onscreen neighboring sectors
+    enum {MaxQueue = 32};
+    struct itemQueue {int sector; float leftWIDTH, rightWIDTH;} queue[MaxQueue], *head=queue, *tail=queue;
+    *head = (struct itemQueue) {player.sector, 0, WIDTH}; //start with first sector to render and the entire screen width
+    if (++head == queue+MaxQueue) head = queue;
+
+    /*keep track of remaining amount of window size to render for on screen neighboring sectors (starts at full window size and get smaller and smaller for each neighboring sector until completed)*/
+    int topHEIGHT[WIDTH], bottomHEIGHT[WIDTH]={0};
+    for (int x=0; x<WIDTH; x++) topHEIGHT[x] = HEIGHT;
+
+    //keep track of already rendered sectors
+    short renderedSectors[numSectors];
+    for (int x=0; x<numSectors; x++) renderedSectors[x] = -1;
+
+    do {
+    //queue tail
+    const struct itemQueue currentItem = *tail;
+    if (++tail == queue+MaxQueue) tail = queue;
+
+    //left to right width amount for rendering and avoiding overdraw
+    int leftWIDTH = currentItem.leftWIDTH;
+    int rightWIDTH = currentItem.rightWIDTH;
+        
+    sector* sect = &sectors[currentItem.sector]; //current sector being rendered
     for (int p=0; p < sect->numPoints; p++) //for each wall in the sector
     {
+
     Vector2 wallpos1 = sect->vertex[p+0];
     Vector2 wallpos2 = sect->vertex[p+1];
 
@@ -262,15 +286,12 @@ void draw3D(sector* sectors) {
     //perspective transformation
     int fov = 90;
     float focal_length = halfWIDTH/(std::tan(degToRad(fov)/2));
-    //float focal_length = halfWIDTH;
 
 
     float x0 = halfWIDTH - focal_length * r0x / r0z; //left wall side
     float x1 = halfWIDTH - focal_length * r1x / r1z; //right wall side
 
     //ceiling and floor
-    //int ceilingHeight = 30;
-    //int floorHeight = -10;
     int ceilingHeight = sect->ceil;
     int floorHeight = sect->floor;
 
@@ -284,7 +305,7 @@ void draw3D(sector* sectors) {
     float nTop0, nTop1, nBottom0, nBottom1;
 
     short neighbor = sect->neighbors[p];
-    if (neighbor >= 0)
+    if (neighbor >= 0 && renderedSectors[neighbor] < 0)
     {
         nCeilingHeight = sectors[neighbor].ceil;
         nFloorHeight = sectors[neighbor].floor;
@@ -301,21 +322,21 @@ void draw3D(sector* sectors) {
     {
         swap(x0, x1);
 
-        if (x0 >= WIDTH || x1 < 0)
+        if (x0 >= rightWIDTH || x1 < leftWIDTH)
         continue;
     
-        xleft = max(x0, 0);
-        xright = min(x1, WIDTH);
+        xleft = max(x0, leftWIDTH);
+        xright = min(x1, rightWIDTH);
 
         swap(x0, x1);
     }
     else
     {
-        if (x0 >= WIDTH || x1 < 0)
+        if (x0 >= rightWIDTH || x1 < leftWIDTH)
         continue;
     
-        xleft = max(x0, 0);
-        xright = min(x1, WIDTH);
+        xleft = max(x0, leftWIDTH);
+        xright = min(x1, rightWIDTH);
     }
 
     if (bottom0 >= HEIGHT && bottom1 >= HEIGHT)
@@ -331,38 +352,44 @@ void draw3D(sector* sectors) {
     //drawLine(Vector2(x0, top0), Vector2(x0, bottom0), Vector3(255, 0, 0));
     //drawLine(Vector2(x1, top1), Vector2(x1, bottom1), Vector3(0, 0, 255));
 
-    //std::cout << "(" << x0 << ", " << top0 << ")" << "---------" << "(" << x1 << ", " << top1 << ")" << std::endl;
-    //std::cout << "(" << x0 << ", " << bottom0 << ")" << "---------" << "(" << x1 << ", " << bottom0 << ")" << std::endl;
-
-    //short neighbor = sect->neighbors[p];
-
     //draw wall by rendering columns
     for (float x = xleft; x <= xright; x++) {
         float t, topy, bottomy;
         
         //use lerp to find the correct x value between x0 and x1 for the column on screen
         t = (x-x0) / (x1-x0);
-        //float t = x/x1;
         topy = top0 + t * (top1 - top0);
         bottomy = bottom0 + t * (bottom1 - bottom0);
 
         //clip y values to screen space once transformed
-        if (bottomy >= HEIGHT || topy < 0)
+        if (bottomy >= topHEIGHT[(int)x] || topy < bottomHEIGHT[(int)x])
         continue;
 
-        topy = min(topy, HEIGHT);
-        bottomy = max(bottomy, 0);
-
+        topy = min(topy, topHEIGHT[(int)x]);
+        bottomy = max(bottomy, bottomHEIGHT[(int)x]);
+        
         //finally render the columns
-        if (neighbor >= 0)
+        if (neighbor >= 0 && renderedSectors[neighbor] < 0)
         {
 
             float nTopy = nTop0 + t * (nTop1 - nTop0);
             float nBottomy = nBottom0 + t * (nBottom1 - nBottom0);
 
-            //render neighboring sector
+            //set screen height for rendering the neighbor sector
+            if (bottomy < nBottomy)
+                bottomHEIGHT[(int)x] = nBottomy;
+            else
+                bottomHEIGHT[(int)x] = bottomy;
+
+            if (topy > nTopy)
+                topHEIGHT[(int)x] = nTopy;
+            else
+                topHEIGHT[(int)x] = topy;
+
+            //render top and bottom part of the neighbor wall
             for (float y = bottomy; y <= topy; y++)
             {
+                //TODO: inefficient way of rendering make separate rendering loops for top and bottom walls
                 if (bottomy < nBottomy && y <= nBottomy)
                 {
                     //if theres a bottom wall part render it
@@ -373,14 +400,9 @@ void draw3D(sector* sectors) {
                     //if theres a top wall part render it
                     pixel(x, y, Vector3(255,255,0));
                 }
-                else
-                {
-                    //render the neighboring sector
-                    pixel(x, y, Vector3(255,0,0));
-                }
             }
         }
-        else
+        else if (neighbor < 0)
         {
             //render normal wall
             for (float y = bottomy; y <= topy; y++)
@@ -389,7 +411,18 @@ void draw3D(sector* sectors) {
             }
         }
     }
+
+    if (neighbor >= 0 && xleft <= xright && renderedSectors[neighbor] < 0)
+    {
+        renderedSectors[currentItem.sector] = currentItem.sector;
+        //queue increases if theres a neighbor on screen that wasn't visited before
+        *head = (struct itemQueue) {neighbor, xleft, xright};
+        if (++head == queue+MaxQueue) head = queue;
     }
+
+    } // end of loop for each wall in currently rendered sector
+
+    } while(head != tail); //render other neighboring sectors
 }
 
 void draw2D(sector* sect) {
