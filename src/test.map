@@ -1,0 +1,54 @@
+MAP
+
+player
+{
+    50 50 20 //position
+    0 // rotation
+    0 //current sector the player is in
+}
+
+numSect 2 //total amount of sectors
+
+sector
+{ //1st sector
+    -10 //floor
+    30 //ceiling
+    4 //amount of walls in the sector
+    p //vertices
+        -70 70 //must be done clockwise for normals to not be inverted
+        -70 -70
+        70 -70
+        70 70
+        -70 70
+    p
+    n //neighbors
+        -1 //-1 is a normal wall
+        -1
+        -1
+        1 //1 means this wall connects to that index of a sector
+    n
+}
+
+sector
+{ //2nd sector
+    -30 //floor
+    50 //ceiling
+    6 //amount of walls in the sector
+    p
+        -70 70
+        70 70
+        140 210
+        70 350
+        -70 350
+        -140 210
+        -70 70
+    p
+    n //neighbors
+        0 //0 means this wall connects to that index of a sector
+        -1 //-1 is a normal wall
+        -1
+        -1
+        -1
+        -1
+    n
+}

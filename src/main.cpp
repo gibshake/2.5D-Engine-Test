@@ -1,22 +1,5 @@
-#include <iostream>
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
-
-//sleep and time functions
-#include <chrono>
-#include <thread>
-
-#include "math.h"
-
-const int WIDTH = 320;
-const int HEIGHT = 240;
-const int RESOLUTION = 3; // scales up internal resolution
-const int FPSLIMIT = 35; 
-
-const int halfWIDTH = WIDTH/2;
-const int halfHEIGHT = HEIGHT/2;
-
-int windowWidth = WIDTH*RESOLUTION, windowHeight = HEIGHT*RESOLUTION;
+#include "commons.h"
+#include "loadmap.h"
 
 //fps limit clock
 using steadyClock = std::chrono::steady_clock;
@@ -25,80 +8,6 @@ auto nextFrame = steadyClock::now();
 float fpsCap = 1.0 / (float)FPSLIMIT;
 auto frameTime = std::chrono::duration_cast<steadyClock::duration>(std::chrono::duration<float>(fpsCap));
 auto frameMargin = std::chrono::microseconds(500);
-
-typedef struct 
-{
-    bool w,a,s,d;
-    bool space;
-    bool shift;
-    bool showmap;
-} Input; Input inputPressed;
-
-typedef struct 
-{
-    Vector3 position;
-    float rotation;
-    int sector; //current sector the player starts in
-} Player; Player player;
-
-typedef struct
-{
-    float prevTime, currTime;
-    float deltaTime;
-} Time; Time timer;
-
-struct sector
-{
-    float floor, ceil;
-    Vector2 *vertex; //vertex array
-    unsigned int numPoints; //amount of vertices in sector
-    short *neighbors;
-}; //*sectors = nullptr;
-unsigned int numSectors = 2;
-
-//TODO: LOAD SECTORS FROM FILE
-sector* sectors = new sector[] {
-    { //1st sector
-        -10, //floor
-        30, //ceiling
-        new Vector2[] {
-            Vector2(-70,70), //must be done clockwise for normals to not be inverted
-            Vector2(-70, -70),
-            Vector2(70,-70),
-            Vector2(70,70),
-            Vector2(-70, 70)
-        },
-        4, //amount of walls in the sector
-        new short[] {
-            -1, //-1 is a normal wall
-            -1,
-            -1,
-            1 //1 means this wall connects to that index of a sector
-        }
-    }, //2nd sector
-        {
-        -30, //floor
-        50, //ceiling
-        new Vector2[] {
-            Vector2(-70,70),
-            Vector2(70, 70),
-            Vector2(140, 210),
-            Vector2(70,350),
-            Vector2(-70,350),
-            Vector2(-140, 210),
-            Vector2(-70, 70)
-        },
-        6, //amount of walls in the sector
-        new short[] {
-            0, //0 means this wall connects to that index of a sector
-            -1, //-1 is a normal wall
-            -1,
-            -1,
-            -1,
-            -1
-        }
-    }
-};
 
 float getCurrentTime();
 void setDeltaTime();
@@ -199,9 +108,12 @@ void init() {
     //init deltatime
     timer.prevTime = getCurrentTime();
 
-    player.position = Vector3(50,50,20);
-    player.rotation = 0;
-    player.sector = 0;
+    //load map and revert to default map if loading fails
+    if (!loadMap("test.map"))
+    {
+        std::cerr << "Error: Failed to open test.map file. Reverting to default map." << std::endl;
+        loadDefaultMap();
+    }
 }
 
 void display(GLFWwindow *window) {

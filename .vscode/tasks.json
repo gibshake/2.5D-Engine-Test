@@ -13,6 +13,9 @@
                 "${workspaceFolder}\\src\\*.cpp",
                 "${workspaceFolder}\\src\\glad.c",
                 "-lglfw3dll",
+                "-static",
+                "-static-libgcc",
+                "-static-libstdc++",
                 "-o",
                 //"${fileDirname}\\${fileBasenameNoExtension}.exe"
                 "${fileDirname}\\DOOM.exe"
