@@ -9,12 +9,16 @@ float fpsCap = 1.0 / (float)FPSLIMIT;
 auto frameTime = std::chrono::duration_cast<steadyClock::duration>(std::chrono::duration<float>(fpsCap));
 auto frameMargin = std::chrono::microseconds(500);
 
+GLuint screenTexture; //screenbuffer texture
+
 float getCurrentTime();
 void setDeltaTime();
 void playerWallCollision(Vector2 &wishDir, short prevSect = -1);
 void playerMovement();
 void processInput(GLFWwindow *window);
 void fpsLimit();
+void initScreenbuffer();
+void updateScreenBuffer();
 void pixel(int x,int y, Vector3 c);
 void drawLine(Vector2 a, Vector2 b, Vector3 color);
 void clearBackground();
@@ -24,14 +28,12 @@ void draw2D(sector* sect);
 void draw3D(sector* sectors);
 void display(GLFWwindow *window);
 
-void windowScaling(int width, int height);
-
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     windowWidth = width;
     windowHeight = height;
-    //windowScaling(width, height);
-    //glViewport(0, 0, width, height);
+    
+    glViewport(0, 0, width, height);
 }
 
 int main()
@@ -47,7 +49,7 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
 
     GLFWwindow* window;
-    window = glfwCreateWindow(WIDTH*RESOLUTION, HEIGHT*RESOLUTION, "DOOM", NULL, NULL);
+    window = glfwCreateWindow(windowWidth, windowHeight, "DOOM", NULL, NULL);
     if (window == NULL)
     {
         std::cout << "Failed to open GLFW window" << std::endl;
@@ -62,17 +64,18 @@ int main()
     }
 
     
-    glViewport(0, 0, WIDTH*RESOLUTION, HEIGHT*RESOLUTION);
-    //glfwSwapInterval(1); // Enable vsync (limits fps to monitor refresh rate, dont enable for fps limit)
+    glViewport(0, 0, windowWidth, windowHeight);
+    //glfwSwapInterval(1); // Enable vsync (limits fps to monitor refresh rate, dont enable with fps limit)
 
-    //TODO check if GL_ARB_framebuffer_object is supported and disable dynamic window scaling if not
+    //TODO remove GL_ARB_framebuffer_object since its unneeded
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-    glPointSize(RESOLUTION); //pixel size
-    glOrtho(0, WIDTH*RESOLUTION, 0, HEIGHT*RESOLUTION, -1, 1); // set the origin at bottom-left corner
+    //glOrtho(0, WIDTH*RESOLUTION, 0, HEIGHT*RESOLUTION, -1, 1); // set the origin at bottom-left corner
+    glOrtho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
+    
+    glDisable(GL_DEPTH_TEST);
 
-    //glEnable(GL_TEXTURE_2D);
-
+    initScreenbuffer();
     init();
     
     while(!glfwWindowShouldClose(window))
@@ -82,18 +85,7 @@ int main()
         setDeltaTime();
         processInput(window);
 
-        //glOrtho(0, WIDTH*RESOLUTION, 0, HEIGHT*RESOLUTION, -1, 1); //transformation for drawing pixels
         display(window);
-
-        //window scaling tests
-        /*glLoadIdentity(); //transformation for drawing quads
-        glBegin(GL_QUADS);
-            glVertex2f(-0.5f, -0.5f);
-            glVertex2f(0.5f, -0.5f);
-            glVertex2f(0.5f, 0.5f);
-            glVertex2f(-0.5f, 0.5f);
-        glEnd();
-        windowScaling(windowWidth, windowHeight);*/
 
         glfwPollEvents();
 
@@ -116,17 +108,79 @@ void init() {
     }
 }
 
+void initScreenbuffer()
+{
+    glGenTextures(1, &screenTexture);
+    glBindTexture(GL_TEXTURE_2D, screenTexture);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA,
+        WIDTH,
+        HEIGHT,
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        nullptr
+    );
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void updateScreenBuffer()
+{
+    //displays framebuffer into the screen via drawing a fullscreen quad with framebuffer as a texture
+
+    glClearColor(0,0,0,1);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glBindTexture(GL_TEXTURE_2D, screenTexture);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    
+    glTexSubImage2D(
+        GL_TEXTURE_2D,
+        0,
+        0, 0,
+        WIDTH, HEIGHT,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        framebuffer
+    );
+
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, screenTexture);
+
+    //glColor4f(1,1,1,1); 
+    glBegin(GL_QUADS);
+        glVertex2f(-1.0f, -1.0f); glTexCoord2f(1.0f, 0.0f);
+        glVertex2f(1.0f, -1.0f); glTexCoord2f(1.0f, 1.0f);
+        glVertex2f(1.0f, 1.0f); glTexCoord2f(0.0f, 1.0f);
+        glVertex2f(-1.0f, 1.0f); glTexCoord2f(0.0f, 0.0f);
+    glEnd();
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glDisable(GL_TEXTURE_2D);
+    
+}
+
 void display(GLFWwindow *window) {
 
     clearBackground();
-
     
     if (inputPressed.showmap)
     draw2D(&sectors[player.sector]);
     else
     draw3D(sectors);
 
-
+    updateScreenBuffer();
     glfwSwapBuffers(window);
 
 }
@@ -265,7 +319,7 @@ void draw3D(sector* sectors) {
     //drawLine(Vector2(x1, top1), Vector2(x1, bottom1), Vector3(0, 0, 255));
 
     //draw wall by rendering columns
-    for (float x = xleft; x <= xright; x++) {
+    for (float x = xleft; x < xright; x++) {
         float t, topy, bottomy;
         
         //use lerp to find the correct x value between x0 and x1 for the column on screen
@@ -299,7 +353,7 @@ void draw3D(sector* sectors) {
                 topHEIGHT[(int)x] = topy;
 
             //render top and bottom part of the neighbor wall
-            for (float y = bottomy; y <= topy; y++)
+            for (float y = bottomy; y < topy; y++)
             {
                 //TODO: inefficient way of rendering make separate rendering loops for top and bottom walls
                 if (bottomy < nBottomy && y <= nBottomy)
@@ -317,7 +371,7 @@ void draw3D(sector* sectors) {
         else if (neighbor < 0)
         {
             //render normal wall
-            for (float y = bottomy; y <= topy; y++)
+            for (float y = bottomy; y < topy; y++)
             {
                 pixel(x, y, Vector3(255,255,0));
             }
@@ -536,10 +590,19 @@ void processInput(GLFWwindow *window)
 
 void pixel(int x,int y, Vector3 c)
 { 
-    glColor3ub(c.x, c.y, c.z); 
-    glBegin(GL_POINTS);
-    glVertex2f(float(x*RESOLUTION)+RESOLUTION*0.5, float(y*RESOLUTION)+RESOLUTION*0.5); //offset by half a pixel because opengl doesnt position pixels correctly
-    glEnd();
+    //check if within screen
+    if (y > HEIGHT-1 || y < 0 || x > WIDTH-1 || x < 0)
+    {
+        //std::cout << "Warning: Drawing outside of screen at x: " << x << " y: " << y << std::endl;
+        return;
+    }
+
+    int i = (y*WIDTH + x)*4;
+    
+    framebuffer[i + 0] = c.x; //red
+    framebuffer[i + 1] = c.y; //green
+    framebuffer[i + 2] = c.z; //blue
+    framebuffer[i + 3] = 255; //alpha
 }
 
 void drawLine(Vector2 p0, Vector2 p1, Vector3 color)
@@ -591,47 +654,6 @@ void clearBackground()
             pixel(x, y, Vector3(10,10,100));
         }
     }
-}
-
-void windowScaling(int width, int height) { //over 3 hours have been wasted on trying to make this work just dont bother
-    glViewport(0, 0, WIDTH*RESOLUTION, HEIGHT*RESOLUTION);
-
-    GLuint framebuffer;
-    glGenFramebuffers(1, &framebuffer);
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-
-    GLuint texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, WIDTH*RESOLUTION, HEIGHT*RESOLUTION, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-    // attach texture to framebuffer
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
-
-    glViewport(0, 0, width, height);
-
-    glDisable(GL_DEPTH_TEST); // disable depth testing for 2D rendering
-
-    glLoadIdentity(); //transformation for drawing quads
-    /*glBegin(GL_QUADS);
-        glTexCoord2f(0.0f, 0.0f); glVertex2f(-1.0f, -1.0f);
-        glTexCoord2f(1.0f, 0.0f); glVertex2f(1.0f, -1.0f);
-        glTexCoord2f(1.0f, 1.0f); glVertex2f(1.0f, 1.0f);
-        glTexCoord2f(0.0f, 1.0f); glVertex2f(-1.0f, 1.0f);
-    glEnd();*/
-    
-    glColor3ub(255, 0, 0); 
-    glBegin(GL_QUADS);
-        glVertex2f(-1.0f, -1.0f);
-        glVertex2f(1.0f, -1.0f);
-        glVertex2f(1.0f, 1.0f);
-        glVertex2f(-1.0f, 1.0f);
-    glEnd();
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void setDeltaTime() {
