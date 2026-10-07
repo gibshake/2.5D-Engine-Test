@@ -191,7 +191,7 @@ void draw3D(sector* sectors) {
 
     //queue for rendering each onscreen neighboring sectors
     enum {MaxQueue = 32};
-    struct itemQueue {int sector; float leftWIDTH, rightWIDTH;} queue[MaxQueue], *head=queue, *tail=queue;
+    struct itemQueue {int sector, leftWIDTH, rightWIDTH;} queue[MaxQueue], *head=queue, *tail=queue;
     *head = (struct itemQueue) {player.sector, 0, WIDTH}; //start with first sector to render and the entire screen width
     if (++head == queue+MaxQueue) head = queue;
 
@@ -258,8 +258,8 @@ void draw3D(sector* sectors) {
     float x1 = halfWIDTH - focal_length * r1x / r1z; //right wall side
 
     //ceiling and floor
-    int ceilingHeight = sect->ceil;
-    int floorHeight = sect->floor;
+    float ceilingHeight = sect->ceil;
+    float floorHeight = sect->floor;
 
     float top0 = halfHEIGHT + focal_length * (ceilingHeight - player.position.z) / r0z;
     float bottom0 = halfHEIGHT + focal_length * (floorHeight - player.position.z) / r0z;
@@ -283,7 +283,7 @@ void draw3D(sector* sectors) {
     }
 
     //clip values into screen space or return if not on screen
-    float xleft, xright;
+    int xleft, xright;
     if (x0 > x1)
     {
         swap(x0, x1);
@@ -319,8 +319,9 @@ void draw3D(sector* sectors) {
     //drawLine(Vector2(x1, top1), Vector2(x1, bottom1), Vector3(0, 0, 255));
 
     //draw wall by rendering columns
-    for (float x = xleft; x < xright; x++) {
-        float t, topy, bottomy;
+    for (int x = xleft; x < xright; x++) {
+        float t;
+        int topy, bottomy;
         
         //use lerp to find the correct x value between x0 and x1 for the column on screen
         t = (x-x0) / (x1-x0);
@@ -328,54 +329,58 @@ void draw3D(sector* sectors) {
         bottomy = bottom0 + t * (bottom1 - bottom0);
 
         //clip y values to screen space once transformed
-        if (bottomy >= topHEIGHT[(int)x] || topy < bottomHEIGHT[(int)x])
+        if (bottomy >= topHEIGHT[x] || topy < bottomHEIGHT[x])
         continue;
 
-        topy = min(topy, topHEIGHT[(int)x]);
-        bottomy = max(bottomy, bottomHEIGHT[(int)x]);
+        topy = min(topy, topHEIGHT[x]);
+        bottomy = max(bottomy, bottomHEIGHT[x]);
         
         //finally render the columns
-        if (neighbor >= 0 && renderedSectors[neighbor] < 0)
+        if (neighbor < 0)
         {
+            //render normal wall
+            for (int y = bottomy; y < topy; y++)
+            {
+                pixel(x, y, Vector3(255,255,0));
+            }
+        }
+        else if (neighbor >= 0 && renderedSectors[neighbor] < 0)
+        {
+            //neighbor wall
 
-            float nTopy = nTop0 + t * (nTop1 - nTop0);
-            float nBottomy = nBottom0 + t * (nBottom1 - nBottom0);
+            int nTopy = nTop0 + t * (nTop1 - nTop0);
+            int nBottomy = nBottom0 + t * (nBottom1 - nBottom0);
 
             //set screen height for rendering the neighbor sector
             if (bottomy < nBottomy)
-                bottomHEIGHT[(int)x] = nBottomy;
+                bottomHEIGHT[x] = nBottomy;
             else
-                bottomHEIGHT[(int)x] = bottomy;
+                bottomHEIGHT[x] = bottomy;
 
             if (topy > nTopy)
-                topHEIGHT[(int)x] = nTopy;
+                topHEIGHT[x] = nTopy;
             else
-                topHEIGHT[(int)x] = topy;
+                topHEIGHT[x] = topy;
 
             //render top and bottom part of the neighbor wall
-            for (float y = bottomy; y < topy; y++)
+            if (bottomy < nBottomy)
             {
-                //TODO: inefficient way of rendering make separate rendering loops for top and bottom walls
-                if (bottomy < nBottomy && y <= nBottomy)
+                for (int y = bottomy; y < nBottomy; y++)
                 {
                     //if theres a bottom wall part render it
                     pixel(x, y, Vector3(255,0,255));
                 }
-                else if (topy > nTopy && y >= nTopy)
+            }
+            if (topy > nTopy)
+            {
+                for (int y = nTopy; y < topy; y++)
                 {
                     //if theres a top wall part render it
                     pixel(x, y, Vector3(255,255,0));
                 }
             }
         }
-        else if (neighbor < 0)
-        {
-            //render normal wall
-            for (float y = bottomy; y < topy; y++)
-            {
-                pixel(x, y, Vector3(255,255,0));
-            }
-        }
+
     }
 
     if (neighbor >= 0 && xleft <= xright && renderedSectors[neighbor] < 0)
