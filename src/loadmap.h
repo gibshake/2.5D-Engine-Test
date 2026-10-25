@@ -3,189 +3,9 @@
 */
 
 #include "commons.h"
+#include "stringparser.h"
 
-sector* sectors; //map sector data to be loaded in
-
-struct ParseError
-{
-    size_t pos;
-    std::string message;
-};
-
-class MapParser
-{
-public:
-    std::string_view token;
-
-    MapParser(std::string_view data_) : data(data_), pos(0)
-    {
-
-    }
-
-    bool failed()
-    {
-        return error;
-    }
-
-    bool stringCheck(std::string_view str)
-    {
-        //check if string is equal to next token otherwise throw an error
-        if (error)
-        return false;
-
-        next();
-        if (token != str)
-        {   
-            error = true;
-
-            unsigned int linepos=1;
-            for (size_t i=0; i < pos; i++)
-            {
-                if (data[i] == '\n')
-                linepos++;
-            }
-            std::cerr << "Map File Error: Expected \"" << str << "\", instead found \"" << token << "\" at line " << linepos << " within map file." << std::endl;
-            return false;
-        }
-        return true;
-    }
-
-    template <typename T>
-    bool numParse(T& value)
-    {
-        //convert next token string to any number type if unable to throw an error
-        if (error)
-        return false;
-
-        next();
-        auto result = std::from_chars(token.data(), token.data() + token.size(), value);
-
-        if (result.ec != std::errc{})
-        {
-            error = true;
-
-            unsigned int linepos=1;
-            for (size_t i=0; i < pos; i++)
-            {
-                if (data[i] == '\n')
-                linepos++;
-            }
-            std::cerr << "Map File Error: Failed to find expected number at line " << linepos << " within map file." << std::endl;
-            return false;
-        }
-        
-        return true;
-        
-    }
-
-    bool sectorParse(sector& sect)
-    {
-        bool success = true;
-
-        stringCheck("sector");
-
-        stringCheck("{");
-
-        //get sector info
-        numParse(sect.floor);
-        numParse(sect.ceil);
-        numParse(sect.numPoints);
-
-        //check for vertices
-        stringCheck("p");
-
-        sect.vertex = new Vector2[sect.numPoints+1];
-        for (int i = 0; i < sect.numPoints+1; i++)
-        {
-            //get all vertices in sector
-            float x, y;
-            numParse(x);
-            numParse(y);
-            sect.vertex[i] = Vector2(x, y);
-        }
-
-        stringCheck("p");
-
-        //check for neighboring sectors
-        stringCheck("n");
-
-        sect.neighbors = new short[sect.numPoints];
-        for (int i = 0; i < sect.numPoints; i++)
-        {
-            //get all neighbors in sector
-            short n;
-            numParse(n);
-            sect.neighbors[i] = n;
-        }
-
-        stringCheck("n");
-
-        stringCheck("}");
-
-        return !error;
-    }
-private:
-    std::string_view data;
-    size_t pos;
-    bool error = false;
-
-    bool isWhitespace(char c)
-    {
-        return c == ' ' || c == '\t' || c == '\n' || c == '\r';
-    }
-
-    void skipWhitespace()
-    {
-        while ( pos < data.size() && isWhitespace(data[pos]) )
-        {
-            pos++;
-        }
-    }
-
-    void stringParse()
-    {
-        //parse string to token
-        const size_t nameStart = pos;
-
-        while (pos < data.size() && !isWhitespace(data[pos]))
-        {
-            pos++;
-        }
-
-        token = data.substr(nameStart, pos - nameStart);
-    }
-
-    void skipComment()
-    {
-        if (pos+1 < data.size() && data[pos] == '/' && data[pos+1] == '/')
-        {
-            while (pos < data.size() && data[pos] != '\r' && data[pos] != '\n')
-            {
-                pos++;
-            }
-        }
-    }
-
-    bool next()
-    {
-        //get the next word in buffer as a string without any whitespace or comments
-        
-        if (pos > data.size() || error)
-        return false;
-        
-        skipWhitespace();
-        while (pos+1 < data.size() && data[pos] == '/' && data[pos+1] == '/')
-        {
-            //skip any comments and whitespace until the next token
-            skipComment();
-            skipWhitespace();
-        }
-
-        stringParse(); //only parsed to string token
-
-        return true;
-    }
-};
+sector* sectors = nullptr; //map sector data to be loaded in and current map the player is in
 
 void loadDefaultMap()
 {
@@ -199,7 +19,7 @@ void loadDefaultMap()
             -10, //floor
             30, //ceiling
             new Vector2[] {
-                Vector2(-70,70), //must be done clockwise for normals to not be inverted
+                Vector2(-70,70), //must be done counterclockwise for normals to not be inverted
                 Vector2(-70, -70),
                 Vector2(70,-70),
                 Vector2(70,70),
@@ -238,12 +58,58 @@ void loadDefaultMap()
     };
 }
 
+bool sectorParse(stringParser& parser, sector& sect)
+{
+    parser.stringCheck("sector");
+
+    parser.stringCheck("{");
+
+    //get sector info
+    parser.numParse(sect.floor);
+    parser.numParse(sect.ceil);
+    parser.numParse(sect.numPoints);
+
+    //check for vertices
+    parser.stringCheck("p");
+
+    sect.vertex = new Vector2[sect.numPoints+1];
+    for (int i = 0; i < sect.numPoints+1; i++)
+    {
+        //get all vertices in sector
+        float x, y;
+        parser.numParse(x);
+        parser.numParse(y);
+        sect.vertex[i] = Vector2(x, y);
+    }
+
+    parser.stringCheck("p");
+
+    //check for neighboring sectors
+    parser.stringCheck("n");
+
+    sect.neighbors = new short[sect.numPoints];
+    for (int i = 0; i < sect.numPoints; i++)
+    {
+        //get all neighbors in sector
+        short n;
+        parser.numParse(n);
+        sect.neighbors[i] = n;
+    }
+
+    parser.stringCheck("n");
+
+    parser.stringCheck("}");
+
+    return !parser.failed();
+}
+
 bool loadMap(std::string fileName) {
 
     std::ifstream file(fileName, std::ios::binary);
     //std::cout << "Opening " << fileName << " in " << std::filesystem::current_path() << std::endl;
     if (!file.is_open())
     {
+        std::cerr << "Loadmap Error: Failed to open file at \"" << fileName << "\"." << std::endl;
         return false;
     }
 
@@ -257,7 +123,7 @@ bool loadMap(std::string fileName) {
     file.close();
 
     //read file data with parser
-    MapParser parser(buffer);
+    stringParser parser(buffer);
 
     //check if theres a MAP signature
     parser.stringCheck("MAP");
@@ -282,12 +148,45 @@ bool loadMap(std::string fileName) {
     parser.stringCheck("numSect");
     parser.numParse(numSectors);
 
-    //get all sector data
-    sectors = new sector[numSectors];
-    for (int i=0; i<numSectors; i++)
+    sector* map = nullptr;
+    if (!parser.failed())
     {
-        parser.sectorParse(sectors[i]);
+        //get all sector data
+        map = new sector[numSectors];
+        for (int i=0; i<numSectors; i++)
+        {
+            sectorParse(parser, map[i]);
+        }
     }
+
+    if (parser.failed())
+    {
+        if (map != nullptr)
+        {
+            //possible fatal error if a parser error is thrown before vertex or neighbors gets allocated
+            delete [] map->vertex;
+            delete [] map->neighbors;
+            
+            delete [] map;
+            map = nullptr;
+        }
+
+        std::cerr << "Loadmap Error: Failed to load \""<< fileName <<"\", error found at line " << parser.getLinePos() << " within file." << std::endl;
+        return false;
+    }
+    
+    if (sectors != nullptr)
+    {
+        //map deallocation
+        delete [] sectors->vertex;
+        delete [] sectors->neighbors;
+        
+        delete [] sectors;
+        sectors = nullptr;
+    }
+    
+    //transfer data to become the current map
+    sectors = map;
     
     return !parser.failed();
 }

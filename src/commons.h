@@ -1,7 +1,6 @@
 /*
     commons.h - all global or commonly used includes, variables, functions are found here
 */
-
 #pragma once
 
 #include <glad/glad.h>
@@ -23,24 +22,25 @@
 #include "math.h"
 
 //constants
-const int WIDTH = 320;
-const int HEIGHT = 240;
-const int RESOLUTION = 3; // only exists to scale up window size
-const int FPSLIMIT = 35; 
+extern const int WIDTH;
+extern const int HEIGHT;
+extern const int RESOLUTION; // only exists to scale up window size
+extern const int FPSLIMIT; 
 
-const int halfWIDTH = WIDTH/2;
-const int halfHEIGHT = HEIGHT/2;
+extern const int halfWIDTH;
+extern const int halfHEIGHT;
 
-int windowWidth = WIDTH*RESOLUTION, windowHeight = HEIGHT*RESOLUTION;
+extern int windowWidth, windowHeight;
 
-unsigned char framebuffer[WIDTH*HEIGHT*4];
+extern unsigned char framebuffer[];
 
 //structs
 typedef struct
 {
     float prevTime, currTime;
     float deltaTime;
-} Time; Time timer;
+} Time;
+extern Time timer;
 
 typedef struct 
 {
@@ -48,14 +48,20 @@ typedef struct
     bool space;
     bool shift;
     bool showmap;
-} Input; Input inputPressed;
+    bool typing = false; //current player state rather than an actual input
+} Input;
+extern Input inputPressed;
+//typing input
+extern std::string msg;
 
 typedef struct 
 {
     Vector3 position;
     float rotation;
     int sector; //current sector the player starts in
-} Player; Player player;
+} Player;
+extern Player player;
+extern int fov;
 
 struct sector
 {
@@ -64,4 +70,9 @@ struct sector
     unsigned int numPoints; //amount of vertices in sector
     short *neighbors;
 }; //*sectors = nullptr;
-unsigned int numSectors = 0;
+extern unsigned int numSectors;
+
+struct image {
+    int width, height;
+    unsigned char *pixelData;
+};

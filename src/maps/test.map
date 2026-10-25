@@ -1,0 +1,262 @@
+MAP
+
+player
+{
+    0 0 -20 //position
+    0 // rotation
+    0 //current sector the player is in
+}
+
+numSect 12 //total amount of sectors
+
+sector
+{ //0th sector, starting room
+    -35 //floor
+    10 //ceiling
+    4 //amount of walls in the sector
+    p //vertices
+        -70 70 //must be done counterclockwise for normals to not be inverted
+        -70 -70
+        70 -70
+        70 70
+        -70 70
+    p
+    n //neighbors
+        -1 //-1 is a normal wall
+        -1
+        -1
+        1 //1 means this wall connects to that index of a sector
+    n
+}
+
+sector
+{ //1st sector, big room
+    -30 //floor
+    30 //ceiling
+    6 //amount of walls in the sector
+    p
+        -70 70
+        70 70
+        140 210
+        70 350
+        -70 350
+        -140 210
+        -70 70
+    p
+    n //neighbors
+        0 //0 means this wall connects to that index of a sector
+        2 //-1 is a normal wall
+        -1
+        -1
+        -1
+        8
+    n
+}
+
+sector
+{ //2th sector, right stairway
+    -25 //floor
+    50 //ceiling
+    4 //amount of walls in the sector
+    p
+        70 70
+	80 50
+	160 210
+	140 210
+	70 70
+    p
+    n //neighbors
+        -1
+        3 //-1 is a normal wall
+        -1
+        1
+    n
+}
+
+sector
+{ //3th sector, right stairway
+    -20 //floor
+    50 //ceiling
+    4 //amount of walls in the sector
+    p
+	80 50
+	90 30
+	180 210
+	160 210
+	80 50
+    p
+    n //neighbors
+        -1
+        4 //-1 is a normal wall
+        -1
+        2
+    n
+}
+
+sector
+{ //4th sector, right stairway
+    -15 //floor
+    50 //ceiling
+    4 //amount of walls in the sector
+    p
+	90 30
+	100 10
+	200 210
+	180 210
+	90 30
+    p
+    n //neighbors
+        -1
+        5 //-1 is a normal wall
+        -1
+        3
+    n
+}
+
+sector
+{ //5th sector, top right room
+    -10 //floor
+    50 //ceiling
+    4 //amount of walls in the sector
+    p
+	100 10
+	100 -70
+	240 -20
+	200 210
+	100 10
+    p
+    n //neighbors
+        6
+        -1 //-1 is a normal wall
+        -1
+        4
+    n
+}
+
+sector
+{ //6th sector, top center room
+    -15 //floor
+    40 //ceiling
+    6 //amount of walls in the sector
+    p
+	100 10
+	80 20
+	-80 20
+	-100 10
+	-100 -70
+	100 -70
+	100 10
+    p
+    n //neighbors
+        -1
+        7 //-1 is a normal wall
+        -1
+        11
+	-1
+	5
+    n
+}
+
+sector
+{ //7th sector, impossible room
+    -35 //floor
+    30 //ceiling
+    6 //amount of walls in the sector
+    p
+	80 20
+	240 200
+	80 420
+	-80 420
+	-240 200
+	-80 20
+	80 20
+    p
+    n //neighbors
+        -1
+        -1 //-1 is a normal wall
+        -1
+        -1
+	-1
+	6
+    n
+}
+
+sector
+{ //8th sector, left stairway
+    -25 //floor
+    50 //ceiling
+    4 //amount of walls in the sector
+    p
+        -70 70
+	-140 210
+	-160 210
+	-80 50
+	-70 70
+    p
+    n //neighbors
+        1
+        -1 //-1 is a normal wall
+        9
+        -1
+    n
+}
+
+sector
+{ //9th sector, left stairway
+    -20 //floor
+    50 //ceiling
+    4 //amount of walls in the sector
+    p
+	-80 50
+	-160 210
+	-180 210
+	-90 30
+	-80 50
+    p
+    n //neighbors
+        8
+        -1 //-1 is a normal wall
+        10
+        -1
+    n
+}
+
+sector
+{ //10th sector, left stairway
+    -15 //floor
+    50 //ceiling
+    4 //amount of walls in the sector
+    p
+	-90 30
+	-180 210
+	-200 210
+	-100 10
+	-90 30
+    p
+    n //neighbors
+        9
+        -1 //-1 is a normal wall
+        11
+        -1
+    n
+}
+
+sector
+{ //11th sector, top left room
+    -10 //floor
+    50 //ceiling
+    4 //amount of walls in the sector
+    p
+	-100 10
+	-200 210
+	-240 -20
+	-100 -70
+	-100 10
+    p
+    n //neighbors
+        10
+        -1 //-1 is a normal wall
+        -1
+        6
+    n
+}
